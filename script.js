@@ -1,49 +1,22 @@
 let correctanswer = "Red and Yellow";
 let answerSelected = false;
 let questionBox = document.getElementById("questionBox");
-let optionBoxes = document.getElementsByClassName("optionBoxes")
+let optionBoxes = document.getElementsByClassName("optionBoxes");
 let authorBox = document.getElementById("authorBox");
 let postedAlert = document.getElementById("postedAlert");
 let noMoreQuestions = document.getElementById("noMoreQuestions");
+let question = {}
+let questionNumber = 1; 
 
 
-let solvedQuestions = []
 
 
-const questions = [
-    {
-        question: "What is the capital of France?",
-        options: ["Berlin", "Madrid", "Paris", "Rome"],
-        author: "John Doe",
-        correctAnswer: "Paris"
-    },
-    {
-        question: "Which planet is known as the Red Planet?",
-        options: ["Earth", "Mars", "Jupiter", "Venus"],
-        author: "Jane Smith",
-        correctAnswer: "Mars"
-    },
-    {
-        question: "What is the largest ocean on Earth?",
-        options: ["Atlantic Ocean", "Indian Ocean", "Arctic Ocean", "Pacific Ocean"],
-        author: "David Lee",
-        correctAnswer: "Pacific Ocean"
-    },
-    {
-        question: "Who wrote 'To Kill a Mockingbird'?",
-        options: ["Harper Lee", "J.K. Rowling", "George Orwell", "Mark Twain"],
-        author: "Emily Johnson",
-        correctAnswer: "Harper Lee"
-    }
-];
-
-let questionNumber = Math.floor(Math.random() * questions.length);
-
+let solvedQuestions = [];
 
 function checkAnswer(e){
     let userSelection = e.target.innerHTML;
     if(!answerSelected){
-    if (userSelection.toLowerCase()==(questions[questionNumber].correctAnswer).toLowerCase()){
+    if (userSelection.toLowerCase()==(question.correctAnswer).toLowerCase()){
         answerSelected = true;
         e.target.classList = "btn btn-success w-100 py-3 optionBoxes"
     } else{
@@ -53,23 +26,41 @@ function checkAnswer(e){
 }
 }
 
-function getNewQuestion(){
+async function getNewQuestion() {
+    await fetch('https://xj6km39ref.execute-api.us-east-2.amazonaws.com/production/questions-count')
+    .then(response=>response.json())
+    .then(data=>{
+        totalQuestions = data.total_count;
+        console.log(totalQuestions)
+    })
     answerSelected = false;
-    if(solvedQuestions.length != questions.length){
-    while (solvedQuestions.includes(questionNumber)){
-        questionNumber = Math.floor(Math.random() * questions.length);
-    }
-    questionBox.innerText = questions[questionNumber].question
-    for(i=0; i<4; i++){
-        optionBoxes[i].classList = "btn btn-outline-secondary w-100 py-3 optionBoxes";
-        optionBoxes[i].innerText = questions[questionNumber].options[i];
-    }
-    authorBox.innerText = "Contributed By: " + questions[questionNumber].author;
-    solvedQuestions.push(questionNumber)
-    }
-    else{
-        postedAlert.classList.replace("d-none", "d-block")
-    }
+    let questionNumber = Math.floor(Math.random() * totalQuestions)+1; 
+
+    fetch(`https://xj6km39ref.execute-api.us-east-2.amazonaws.com/production/question?questionNumber=${questionNumber}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data && data.question && solvedQuestions.length!=totalQuestions) {
+                if (solvedQuestions.includes(questionNumber)) {
+                    getNewQuestion();
+                } else {
+                    question = data;
+                    questionBox.innerText = question.question;
+                    authorBox.innerText = "Contributed By: " + question.author;
+
+                    for (let i = 0; i < 4; i++) {
+                        optionBoxes[i].classList = "btn btn-outline-secondary w-100 py-3 optionBoxes";
+                        optionBoxes[i].innerText = question.options[i];
+                    }
+
+                    solvedQuestions.push(questionNumber); 
+                }
+            } else {
+                noMoreQuestions.classList.replace("d-none", "d-block");
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching question:', error);
+        });
 }
 
 function postQuestion(event) {
@@ -80,16 +71,32 @@ function postQuestion(event) {
     const option2 = document.getElementById("option2").value;
     const option3 = document.getElementById("option3").value;
     const option4 = document.getElementById("option4").value;
-    const correctAnswer = document.getElementById("correctAnswer").value;
+    const correctAnswer = document.getElementById(document.getElementById("correctAnswer").value).value;
     const author = document.getElementById("author").value;
 
+    const newQuestion = {
+        question,
+        options: [option1, option2, option3, option4],
+        correctAnswer,
+        author: author || "Anonymous"
+    };
 
-    console.log("question:", question);
-    console.log("options:", [option1, option2, option3, option4]);
-    console.log("correctAnswer:", correctAnswer);
-    console.log("Contributed By:", author || "Anonymous");
-    postedAlert.classList.replace("d-none", "d-block")
-    document.getElementById("questionForm").reset();
+    fetch('https://xj6km39ref.execute-api.us-east-2.amazonaws.com/production/question', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(newQuestion)
+    })
+    .then(response => response.json())
+    .then(data => {
+        console.log('Question posted:', data);
+        postedAlert.classList.replace("d-none", "d-block");
+        document.getElementById("questionForm").reset();
+    })
+    .catch(error => {
+        console.error('Error posting question:', error);
+    });
 }
 
-getNewQuestion();
+getNewQuestion()
